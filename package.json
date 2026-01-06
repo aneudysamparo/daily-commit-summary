@@ -22,7 +22,7 @@
     "cli"
   ],
   "author": "Aneudys Amparo",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@10.27.0",
   "preferGlobal": true,
   "dependencies": {
@@ -30,6 +30,7 @@
     "@ai-sdk/perplexity": "^3.0.4",
     "clipboardy": "^5.0.2",
     "dotenv": "^17.2.3",
+    "inquirer": "^13.1.0",
     "openai": "^6.15.0",
     "yargs": "^18.0.0"
   },
