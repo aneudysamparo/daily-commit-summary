@@ -1,0 +1,26 @@
+{
+  "name": "daily-commit-summary",
+  "version": "1.0.0",
+  "description": "Summarize your daily git commits using AI",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "daily-summary": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.27.0",
+  "preferGlobal": true,
+  "dependencies": {
+    "@ai-sdk/google": "^3.0.4",
+    "@ai-sdk/perplexity": "^3.0.4",
+    "clipboardy": "^5.0.2",
+    "dotenv": "^17.2.3",
+    "openai": "^6.15.0",
+    "yargs": "^18.0.0"
+  }
+}

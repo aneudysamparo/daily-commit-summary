@@ -1,0 +1,33 @@
+# Node.js
+node_modules/
+.env
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Logs
+logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Build
+/dist/
+/build/
+
+# Misc
+*.tgz
+
+# Optional: ignore lock files if not needed
+# package-lock.json
+yarn.lock
+pnpm-lock.yaml
