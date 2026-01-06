@@ -1,3 +1,39 @@
+# Installation
+
+## Run Locally (Development)
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/daily-commit-summary.git
+cd daily-commit-summary
+
+# Install dependencies
+pnpm install   # or npm install or yarn install
+
+# Run the CLI
+node index.js [options]
+
+# Or use the bin shortcuts (if you want):
+./index.js [options]
+
+# Or use the link to use globally (inside the project's dir)
+pnpm link --global
+or
+npm link
+```
+
+## Global install (recommended for CLI usage)
+
+```bash
+# Using npm
+npm install -g daily-commit-summary
+
+# Using pnpm (recommended)
+pnpm add -g daily-commit-summary
+
+# Using yarn
+yarn global add daily-commit-summary
+```
 # Daily Commit Summary
 
 Generate daily work reports from git commits using AI. Create detailed reports for project management tools or brief summaries for time tracking apps.
@@ -11,8 +47,6 @@ Generate daily work reports from git commits using AI. Create detailed reports f
 pnpm add -g daily-commit-summary
 
 # Using npm
-npm install -g daily-commit-summary
-
 # Using yarn
 yarn global add daily-commit-summary
 ```
@@ -41,9 +75,9 @@ DEFAULT_REPORT=all
 
 ```bash
 # Quick commands
-ds                                    # Generate all reports today
-dcs                                   # Generate all reports + copy to clipboard
-ds -r full                           # Only full report
+## Command Shortcuts
+- `ds`   - daily-summary (standard)
+- `dcs`  - daily-summary with --copy enabled (for clipboard)
 ds -r summary                        # Only summary
 ds -p ~/projects/myapp               # Specify repo path
 ds -d 2026-01-05                     # Specific date
@@ -62,15 +96,6 @@ ds --model gpt-4-turbo               # Use different model
 ## Configuration
 
 ### `.env` File Options
-
-```env
-API_PROVIDER          # openai or perplexity
-OPENAI_API_KEY        # Your OpenAI key
-PERPLEXITY_API_KEY    # Your Perplexity key
-OPENAI_MODEL          # gpt-4o-mini (default), gpt-4-turbo, gpt-4o
-PERPLEXITY_MODEL      # llama-3.1-sonar-small-128k-online (default)
-DEFAULT_REPORT        # all, full, or summary
-DEFAULT_COPY          # true or false
 ```
 
 ### CLI Options
@@ -97,11 +122,6 @@ DEFAULT_COPY          # true or false
 
 **Perplexity (llama-3.1-sonar-small-128k-online)**
 - $0.02 per 1M input tokens
-- ~1000 commits → $0.0002 per report
-
-## Examples
-
-```bash
 # Generate all reports for today's commits
 ds
 
@@ -135,28 +155,7 @@ ds --show-env
 - Git
 - Valid API key (OpenAI or Perplexity)
 
-## License
-
-ISC
 
 ## Contributing
 
 Contributions welcome! Feel free to submit issues or PRs.
-```
-
-***
-
-## **Step 6: Install Locally**
-
-```bash
-cd ~/daily-commit-summary
-pnpm install
-pnpm link --global
-```
-
-Or to test before publishing:
-```bash
-pnpm link --global
-```
-
-
