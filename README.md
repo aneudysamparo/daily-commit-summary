@@ -1,8 +1,14 @@
 # Daily Commit Summary
+![npm version](https://img.shields.io/npm/v/daily-commit-summary)
+![license](https://img.shields.io/npm/l/daily-commit-summary)
+![downloads](https://img.shields.io/npm/dt/daily-commit-summary)
+
 
 Generate daily work reports from git commits using AI. Create detailed reports for project management tools or brief summaries for time tracking apps.
 
 ## Installation
+
+[![asciicast](https://asciinema.org/a/MQdGBuXX5QutT4OESp4HZsamP.svg)](https://asciinema.org/a/MQdGBuXX5QutT4OESp4HZsamP)
 
 ### Global install (recommended for CLI usage)
 
