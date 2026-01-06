@@ -5,9 +5,9 @@
   "main": "index.js",
   "type": "module",
   "bin": {
-    "daily-summary": "./index.js",
-    "ds": "./index.js",
-    "dcs": "./index.js"
+    "daily-summary": "index.js",
+    "ds": "index.js",
+    "dcs": "index.js"
   },
   "scripts": {
     "start": "node index.js"
