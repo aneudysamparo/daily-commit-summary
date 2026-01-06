@@ -30,7 +30,7 @@ const argv = yargs(hideBin(process.argv))
     alias: "r",
     describe: "Report type to generate",
     type: "string",
-    choices: ["all", "asana", "toptracker"],
+    choices: ["all", "full", "summary"],
     default: "all",
   })
   .option("api", {
@@ -58,12 +58,32 @@ const argv = yargs(hideBin(process.argv))
     "Generate all reports for today in current directory"
   )
   .example(
-    "daily-summary -p ~/projects/myapp -r asana",
-    "Generate Asana report for specific project"
+    "daily-summary -p ~/projects/myapp -r full",
+    "Generate full report for specific project"
   )
   .example(
-    "daily-summary -d 2026-01-05 -r toptracker --copy",
-    "Generate TopTracker report for specific date and copy to clipboard"
+    "daily-summary -d 2026-01-05 -r summary --copy",
+    "Generate summary for specific date and copy to clipboard"
+  )
+  .epilogue(
+    `
+Report Types:
+  all      - Generate both full and summary reports (default)
+  full     - Detailed report with sections and breakdown
+  summary  - Brief single-line summary (~200 chars)
+
+API Providers:
+  openai    - OpenAI (cheapest: gpt-4o-mini)
+  perplexity - Perplexity API (faster responses)
+
+Examples:
+  daily-summary                          # All reports, today, current dir
+  daily-summary -p /path/to/repo        # Specify repo path
+  daily-summary -r full                 # Only full report
+  daily-summary -r summary --copy       # Summary copied to clipboard
+  daily-summary -d 2026-01-05           # Specific date
+  daily-summary -a perplexity           # Use Perplexity API
+`.trim()
   )
   .parseSync();
 
@@ -111,7 +131,7 @@ function getCurrentBranch(repoPath) {
 }
 
 /**
- * Summarize with OpenAI
+ * Call AI API
  */
 async function callAI(commits, prompt, model, apiProvider) {
   if (apiProvider === "openai") {
@@ -145,10 +165,10 @@ async function callAI(commits, prompt, model, apiProvider) {
 }
 
 /**
- * Generate Asana-style detailed report
+ * Generate full detailed report
  */
-async function generateAsanaReport(commits, branch, api, model) {
-  const prompt = `You are a professional project manager. Create a detailed daily work report in Asana format based on these git commits.
+async function generateFullReport(commits, branch, api, model) {
+  const prompt = `You are a professional project manager. Create a detailed daily work report based on these git commits.
 
 Requirements:
 - Use first person ("I", "We")
@@ -170,12 +190,12 @@ Generate the report now. Start with a title, then sections with bullets:`;
 }
 
 /**
- * Generate TopTracker-style summary
+ * Generate summary report
  */
-async function generateTopTrackerSummary(commits, asanaReport, branch, api, model) {
-  const prompt = `You are creating a brief end-of-day work log entry for TopTracker (~150-200 characters, single line).
+async function generateSummaryReport(commits, fullReport, branch, api, model) {
+  const prompt = `You are creating a brief end-of-day work log entry (~150-200 characters, single line).
 
-Based on this detailed Asana report and git commits, create a concise summary.
+Based on this detailed report and git commits, create a concise summary.
 
 Requirements:
 - Max 200 characters
@@ -184,16 +204,17 @@ Requirements:
 - Include feature/component name when relevant
 - Professional tone
 - Start with action verb
+- No quotation marks needed
 
-Asana Report:
-${asanaReport}
+Full Report:
+${fullReport}
 
 Git commits:
 ${commits}
 
 Branch: ${branch}
 
-Generate the TopTracker summary (keep it short and punchy):`;
+Generate the summary (keep it short and punchy):`;
 
   return await callAI(commits, prompt, model, api);
 }
@@ -201,48 +222,28 @@ Generate the TopTracker summary (keep it short and punchy):`;
 /**
  * Format reports for display
  */
-function formatReports(asanaReport, topTrackerSummary, dateStr) {
+function formatReports(fullReport, summaryReport, dateStr) {
   const date = dateStr || new Date().toISOString().split("T")[0];
   let output = `\n${"═".repeat(70)}\n`;
   output += `📅 Daily Report - ${date}\n`;
   output += `${"═".repeat(70)}\n\n`;
 
-  if (asanaReport) {
-    output += `📋 ASANA REPORT\n`;
+  if (fullReport) {
+    output += `📋 FULL REPORT\n`;
     output += `${"─".repeat(70)}\n`;
-    output += asanaReport;
+    output += fullReport;
     output += `\n\n`;
   }
 
-  if (topTrackerSummary) {
-    output += `⏱️  TOPTRACKER SUMMARY\n`;
+  if (summaryReport) {
+    output += `⏱️  SUMMARY\n`;
     output += `${"─".repeat(70)}\n`;
-    output += `"${topTrackerSummary}"\n`;
-    output += `📊 Characters: ${topTrackerSummary.length}/200\n\n`;
+    output += `"${summaryReport}"\n`;
+    output += `📊 Characters: ${summaryReport.length}/200\n\n`;
   }
 
   output += `${"═".repeat(70)}\n`;
   return output;
-}
-
-/**
- * Save reports to file
- */
-async function saveReportsToFile(asanaReport, topTrackerSummary, dateStr) {
-  const fs = await import("fs");
-  const date = dateStr || new Date().toISOString().split("T")[0];
-  const fileName = `daily-report-${date}.md`;
-
-  let content = `# Daily Report - ${date}\n\n`;
-  if (asanaReport) {
-    content += `## Asana Report\n\n${asanaReport}\n\n`;
-  }
-  if (topTrackerSummary) {
-    content += `## TopTracker Summary\n\n${topTrackerSummary}\n\n`;
-  }
-
-  fs.writeFileSync(fileName, content);
-  return fileName;
 }
 
 /**
@@ -255,12 +256,12 @@ async function main() {
 
   // Display header
   console.log("\n");
-  console.log("🎯 Daily Commit Summary Generator");
+  console.log("🎯 Daily Report Generator");
   console.log("═".repeat(70));
   console.log(`📍 Repository: ${repoPath}`);
   console.log(`🌿 Branch: ${branch}`);
   console.log(`📅 Date: ${dateStr || "Today"}`);
-  console.log(`📊 Reports: ${argv.report.toUpperCase()}`);
+  console.log(`📊 Reports: ${argv.report === "all" ? "full + summary" : argv.report}`);
   console.log(`🤖 API: ${argv.api}`);
   if (argv.model) console.log(`🎯 Model: ${argv.model}`);
   if (argv.copy) console.log(`📋 Will copy to clipboard`);
@@ -277,47 +278,45 @@ async function main() {
 
   console.log(`✓ Found commits:\n${commits}\n`);
 
-  let asanaReport = null;
-  let topTrackerSummary = null;
+  let fullReport = null;
+  let summaryReport = null;
 
   try {
-    // Generate Asana report if requested
-    if (argv.report === "all" || argv.report === "asana") {
-      console.log("🔄 Generating Asana report...");
-      asanaReport = await generateAsanaReport(commits, branch, argv.api, argv.model);
-      console.log("✅ Asana report generated\n");
+    // Generate full report if requested
+    if (argv.report === "all" || argv.report === "full") {
+      console.log("🔄 Generating full report...");
+      fullReport = await generateFullReport(commits, branch, argv.api, argv.model);
+      console.log("✅ Full report generated\n");
     }
 
-    // Generate TopTracker summary if requested
-    if (argv.report === "all" || argv.report === "toptracker") {
-      console.log("🔄 Generating TopTracker summary...");
-      // If we have Asana report, use it for context; otherwise use commits
-      const context = asanaReport || commits;
-      topTrackerSummary = await generateTopTrackerSummary(
+    // Generate summary if requested
+    if (argv.report === "all" || argv.report === "summary") {
+      console.log("🔄 Generating summary...");
+      // If we have full report, use it for context; otherwise use commits
+      const context = fullReport || commits;
+      summaryReport = await generateSummaryReport(
         commits,
         context,
         branch,
         argv.api,
         argv.model
       );
-      console.log("✅ TopTracker summary generated\n");
+      console.log("✅ Summary generated\n");
     }
 
     // Display formatted reports
-    const formattedOutput = formatReports(asanaReport, topTrackerSummary, dateStr);
+    const formattedOutput = formatReports(fullReport, summaryReport, dateStr);
     console.log(formattedOutput);
 
     // Copy to clipboard if requested
     if (argv.copy) {
       console.log("📋 Copying to clipboard...");
-      const clipboardContent = asanaReport ? asanaReport + "\n\n---\n\n" + topTrackerSummary : topTrackerSummary;
+      const clipboardContent = fullReport
+        ? fullReport + "\n\n---\n\n" + summaryReport
+        : summaryReport;
       await clipboardy.write(clipboardContent);
       console.log("✅ Copied to clipboard!\n");
     }
-
-    // Optional: Save to file
-    // const fileName = await saveReportsToFile(asanaReport, topTrackerSummary, dateStr);
-    // console.log(`💾 Reports saved to: ${fileName}\n`);
   } catch (error) {
     console.error("❌ Error generating reports:", error.message);
     process.exit(1);
