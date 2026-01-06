@@ -10,6 +10,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import OpenAI from "openai";
 import clipboardy from "clipboardy";
+import inquirer from "inquirer";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
