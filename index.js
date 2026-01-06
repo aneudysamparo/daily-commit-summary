@@ -3,6 +3,7 @@
 import { execSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 import dotenv from "dotenv";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -11,7 +12,27 @@ import clipboardy from "clipboardy";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-dotenv.config({ path: resolve(__dirname, ".env") });
+// Load environment variables
+const envPath = resolve(__dirname, ".env");
+if (existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+} else {
+  console.warn(
+    "⚠️  .env file not found. Create one from .env.example or set API keys via CLI flags."
+  );
+}
+
+// Get defaults from .env or use hardcoded defaults
+const getEnvVar = (key, defaultValue) => process.env[key] || defaultValue;
+
+const DEFAULT_API_PROVIDER = getEnvVar("API_PROVIDER", "openai");
+const DEFAULT_REPORT_TYPE = getEnvVar("DEFAULT_REPORT", "all");
+const DEFAULT_COPY = getEnvVar("DEFAULT_COPY", "false") === "true";
+const DEFAULT_OPENAI_MODEL = getEnvVar("OPENAI_MODEL", "gpt-4o-mini");
+const DEFAULT_PERPLEXITY_MODEL = getEnvVar(
+  "PERPLEXITY_MODEL",
+  "llama-3.1-sonar-small-128k-online"
+);
 
 const argv = yargs(hideBin(process.argv))
   .option("path", {
@@ -28,64 +49,128 @@ const argv = yargs(hideBin(process.argv))
   })
   .option("report", {
     alias: "r",
-    describe: "Report type to generate",
+    describe: "Report type: all, full, or summary",
     type: "string",
     choices: ["all", "full", "summary"],
-    default: "all",
+    default: DEFAULT_REPORT_TYPE,
   })
   .option("api", {
     alias: "a",
     describe: "API provider: openai or perplexity",
     type: "string",
-    default: "openai",
     choices: ["openai", "perplexity"],
+    default: DEFAULT_API_PROVIDER,
+  })
+  .option("key", {
+    alias: "k",
+    describe:
+      "API key (overrides env var). Format: --key=sk-xxx or OPENAI_API_KEY=sk-xxx",
+    type: "string",
+    default: null,
   })
   .option("model", {
     alias: "m",
-    describe: "Model name (optional, uses default if not specified)",
+    describe:
+      "Model name (overrides env var). Default: gpt-4o-mini (openai) or llama-3.1-sonar-small-128k-online (perplexity)",
     type: "string",
     default: null,
   })
   .option("copy", {
     describe: "Copy reports to clipboard",
     type: "boolean",
+    default: DEFAULT_COPY,
+  })
+  .option("show-env", {
+    describe: "Show current environment configuration",
+    type: "boolean",
     default: false,
   })
   .help()
   .alias("help", "h")
+  .example("ds", "Generate all reports for today")
+  .example("ds -p ~/projects/myapp", "Specify repo path")
+  .example("ds -r full", "Only full report")
+  .example("dcs -r summary", "Summary copied to clipboard (dcs = ds + copy)")
   .example(
-    "daily-summary",
-    "Generate all reports for today in current directory"
+    "ds --api perplexity --key pplx-xxx --model llama-3.1-sonar-large",
+    "Override API and model"
   )
-  .example(
-    "daily-summary -p ~/projects/myapp -r full",
-    "Generate full report for specific project"
-  )
-  .example(
-    "daily-summary -d 2026-01-05 -r summary --copy",
-    "Generate summary for specific date and copy to clipboard"
-  )
+  .example("ds --show-env", "View current configuration")
   .epilogue(
     `
-Report Types:
-  all      - Generate both full and summary reports (default)
-  full     - Detailed report with sections and breakdown
-  summary  - Brief single-line summary (~200 chars)
+Command Shortcuts:
+  ds   - daily-summary (standard)
+  dcs  - daily-summary with --copy enabled (for clipboard)
 
-API Providers:
-  openai    - OpenAI (cheapest: gpt-4o-mini)
-  perplexity - Perplexity API (faster responses)
+Configuration:
+  Create a .env file in the project root (copy from .env.example):
+  - API_PROVIDER: openai or perplexity
+  - OPENAI_API_KEY: your OpenAI key
+  - PERPLEXITY_API_KEY: your Perplexity key
+  - OPENAI_MODEL: default OpenAI model
+  - PERPLEXITY_MODEL: default Perplexity model
+  - DEFAULT_REPORT: all, full, or summary
+  - DEFAULT_COPY: true or false
 
-Examples:
-  daily-summary                          # All reports, today, current dir
-  daily-summary -p /path/to/repo        # Specify repo path
-  daily-summary -r full                 # Only full report
-  daily-summary -r summary --copy       # Summary copied to clipboard
-  daily-summary -d 2026-01-05           # Specific date
-  daily-summary -a perplexity           # Use Perplexity API
+CLI Override Examples:
+  ds --api openai --key sk-xxx                    # Override API key
+  ds --model gpt-4-turbo                          # Override model
+  ds --api perplexity --key pplx-xxx              # Switch to Perplexity
+
+Environment Check:
+  ds --show-env                                   # See current config
+
+Documentation:
+  https://github.com/yourusername/daily-commit-summary
 `.trim()
   )
   .parseSync();
+
+/**
+ * Show environment configuration
+ */
+function showEnvironmentConfig(api, model, key) {
+  console.log("\n");
+  console.log("⚙️  Current Configuration");
+  console.log("═".repeat(70));
+  console.log(`API Provider: ${api}`);
+  console.log(`Model: ${model}`);
+  console.log(`API Key: ${key ? "✅ Set (hidden for security)" : "❌ Not set"}`);
+  console.log(`Default Report: ${DEFAULT_REPORT_TYPE}`);
+  console.log(`Default Copy: ${DEFAULT_COPY}`);
+  console.log("═".repeat(70));
+  console.log("\n📝 To set a .env file, create one in the project root:");
+  console.log("   cp .env.example .env");
+  console.log("   # Edit .env with your settings\n");
+}
+
+/**
+ * Get API key and model based on provider and CLI args
+ */
+function getApiConfig(provider, cliKey, cliModel) {
+  const selectedProvider = provider || DEFAULT_API_PROVIDER;
+
+  let apiKey;
+  let model;
+
+  if (selectedProvider === "openai") {
+    apiKey = cliKey || process.env.OPENAI_API_KEY;
+    model = cliModel || DEFAULT_OPENAI_MODEL;
+  } else if (selectedProvider === "perplexity") {
+    apiKey = cliKey || process.env.PERPLEXITY_API_KEY;
+    model = cliModel || DEFAULT_PERPLEXITY_MODEL;
+  }
+
+  if (!apiKey) {
+    console.error(`❌ No API key found for ${selectedProvider}`);
+    console.error(
+      `   Set it in .env or use: --key=your_key or OPENAI_API_KEY=sk-xxx`
+    );
+    process.exit(1);
+  }
+
+  return { apiKey, model, provider: selectedProvider };
+}
 
 /**
  * Get commits for a specific date range
@@ -133,14 +218,14 @@ function getCurrentBranch(repoPath) {
 /**
  * Call AI API
  */
-async function callAI(commits, prompt, model, apiProvider) {
+async function callAI(commits, prompt, model, apiKey, apiProvider) {
   if (apiProvider === "openai") {
     const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: apiKey,
     });
 
     const response = await client.chat.completions.create({
-      model: model || "gpt-4o-mini",
+      model: model,
       messages: [{ role: "user", content: prompt }],
       max_tokens: 500,
       temperature: 0.4,
@@ -149,12 +234,12 @@ async function callAI(commits, prompt, model, apiProvider) {
     return response.choices[0].message.content.trim();
   } else if (apiProvider === "perplexity") {
     const client = new OpenAI({
-      apiKey: process.env.PERPLEXITY_API_KEY,
+      apiKey: apiKey,
       baseURL: "https://api.perplexity.ai",
     });
 
     const response = await client.chat.completions.create({
-      model: model || "llama-3.1-sonar-small-128k-online",
+      model: model,
       messages: [{ role: "user", content: prompt }],
       max_tokens: 500,
       temperature: 0.4,
@@ -167,7 +252,7 @@ async function callAI(commits, prompt, model, apiProvider) {
 /**
  * Generate full detailed report
  */
-async function generateFullReport(commits, branch, api, model) {
+async function generateFullReport(commits, branch, apiKey, model, api) {
   const prompt = `You are a professional project manager. Create a detailed daily work report based on these git commits.
 
 Requirements:
@@ -186,13 +271,20 @@ Branch: ${branch}
 
 Generate the report now. Start with a title, then sections with bullets:`;
 
-  return await callAI(commits, prompt, model, api);
+  return await callAI(commits, prompt, model, apiKey, api);
 }
 
 /**
  * Generate summary report
  */
-async function generateSummaryReport(commits, fullReport, branch, api, model) {
+async function generateSummaryReport(
+  commits,
+  fullReport,
+  branch,
+  apiKey,
+  model,
+  api
+) {
   const prompt = `You are creating a brief end-of-day work log entry (~150-200 characters, single line).
 
 Based on this detailed report and git commits, create a concise summary.
@@ -216,7 +308,7 @@ Branch: ${branch}
 
 Generate the summary (keep it short and punchy):`;
 
-  return await callAI(commits, prompt, model, api);
+  return await callAI(commits, prompt, model, apiKey, api);
 }
 
 /**
@@ -250,9 +342,19 @@ function formatReports(fullReport, summaryReport, dateStr) {
  * Main function
  */
 async function main() {
+  // Show env if requested
+  if (argv["show-env"]) {
+    const { apiKey, model, provider } = getApiConfig(argv.api, argv.key, argv.model);
+    showEnvironmentConfig(provider, model, argv.key || process.env.OPENAI_API_KEY || process.env.PERPLEXITY_API_KEY);
+    return;
+  }
+
   const repoPath = resolve(argv.path);
   const branch = getCurrentBranch(repoPath);
   const dateStr = argv.date;
+
+  // Get API configuration
+  const { apiKey, model, provider } = getApiConfig(argv.api, argv.key, argv.model);
 
   // Display header
   console.log("\n");
@@ -262,8 +364,8 @@ async function main() {
   console.log(`🌿 Branch: ${branch}`);
   console.log(`📅 Date: ${dateStr || "Today"}`);
   console.log(`📊 Reports: ${argv.report === "all" ? "full + summary" : argv.report}`);
-  console.log(`🤖 API: ${argv.api}`);
-  if (argv.model) console.log(`🎯 Model: ${argv.model}`);
+  console.log(`🤖 API: ${provider}`);
+  console.log(`🎯 Model: ${model}`);
   if (argv.copy) console.log(`📋 Will copy to clipboard`);
   console.log("═".repeat(70));
 
@@ -285,21 +387,21 @@ async function main() {
     // Generate full report if requested
     if (argv.report === "all" || argv.report === "full") {
       console.log("🔄 Generating full report...");
-      fullReport = await generateFullReport(commits, branch, argv.api, argv.model);
+      fullReport = await generateFullReport(commits, branch, apiKey, model, provider);
       console.log("✅ Full report generated\n");
     }
 
     // Generate summary if requested
     if (argv.report === "all" || argv.report === "summary") {
       console.log("🔄 Generating summary...");
-      // If we have full report, use it for context; otherwise use commits
       const context = fullReport || commits;
       summaryReport = await generateSummaryReport(
         commits,
         context,
         branch,
-        argv.api,
-        argv.model
+        apiKey,
+        model,
+        provider
       );
       console.log("✅ Summary generated\n");
     }

@@ -1,17 +1,27 @@
 {
   "name": "daily-commit-summary",
-  "version": "2.0.0",
-  "description": "Summarize your daily git commits using AI",
+  "version": "2.1.0",
+  "description": "Generate daily work reports from git commits using AI",
   "main": "index.js",
   "type": "module",
   "bin": {
-    "daily-summary": "./index.js"
+    "daily-summary": "./index.js",
+    "ds": "./index.js",
+    "dcs": "./index.js"
   },
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "git",
+    "commits",
+    "daily-report",
+    "ai",
+    "openai",
+    "productivity",
+    "cli"
+  ],
+  "author": "Aneudys Amparo",
   "license": "ISC",
   "packageManager": "pnpm@10.27.0",
   "preferGlobal": true,
@@ -22,5 +32,8 @@
     "dotenv": "^17.2.3",
     "openai": "^6.15.0",
     "yargs": "^18.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }
