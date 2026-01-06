@@ -1,0 +1,9 @@
+{
+  "apiProvider": "openai",
+  "openaiKey": "sk-...",
+  "perplexityKey": "",
+  "openaiModel": "gpt-4o-mini",
+  "perplexityModel": "llama-3.1-sonar-small-128k-online",
+  "defaultReport": "all",
+  "defaultCopy": false
+}

@@ -3,7 +3,8 @@
 import { execSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import dotenv from "dotenv";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -12,27 +13,63 @@ import clipboardy from "clipboardy";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Load environment variables
-const envPath = resolve(__dirname, ".env");
-if (existsSync(envPath)) {
-  dotenv.config({ path: envPath });
-} else {
-  console.warn(
-    "⚠️  .env file not found. Create one from .env.example or set API keys via CLI flags."
-  );
+// ---------- Paths & basic env ----------
+const LOCAL_ENV_PATH = resolve(__dirname, ".env");
+if (existsSync(LOCAL_ENV_PATH)) {
+  dotenv.config({ path: LOCAL_ENV_PATH });
 }
 
-// Get defaults from .env or use hardcoded defaults
-const getEnvVar = (key, defaultValue) => process.env[key] || defaultValue;
+const GLOBAL_CONFIG_PATH = resolve(os.homedir(), ".daily-commit-summary.json");
 
-const DEFAULT_API_PROVIDER = getEnvVar("API_PROVIDER", "openai");
-const DEFAULT_REPORT_TYPE = getEnvVar("DEFAULT_REPORT", "all");
-const DEFAULT_COPY = getEnvVar("DEFAULT_COPY", "false") === "true";
-const DEFAULT_OPENAI_MODEL = getEnvVar("OPENAI_MODEL", "gpt-4o-mini");
-const DEFAULT_PERPLEXITY_MODEL = getEnvVar(
-  "PERPLEXITY_MODEL",
-  "llama-3.1-sonar-small-128k-online"
-);
+// ---------- Helpers for global config ----------
+function loadGlobalConfig() {
+  if (!existsSync(GLOBAL_CONFIG_PATH)) return {};
+  try {
+    const raw = readFileSync(GLOBAL_CONFIG_PATH, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function saveGlobalConfig(config) {
+  writeFileSync(GLOBAL_CONFIG_PATH, JSON.stringify(config, null, 2), "utf8");
+}
+
+function printGlobalConfig(config) {
+  console.log("\n⚙️  Global config file:");
+  console.log(`   ${GLOBAL_CONFIG_PATH}\n`);
+  if (!Object.keys(config).length) {
+    console.log("No global config set yet. Run `ds --init` to configure.\n");
+    return;
+  }
+
+  Object.entries(config).forEach(([k, v]) => {
+    const redacted =
+      k.toLowerCase().includes("key") && v ? "**** (set)" : String(v);
+    console.log(`${k} = ${redacted}`);
+  });
+  console.log("");
+}
+
+// ---------- Load env + config defaults ----------
+const globalConfig = loadGlobalConfig();
+
+const envOr = (key, fallback) =>
+  process.env[key] !== undefined ? process.env[key] : fallback;
+
+const DEFAULT_API_PROVIDER =
+  globalConfig.apiProvider || envOr("API_PROVIDER", "openai");
+const DEFAULT_REPORT_TYPE =
+  globalConfig.defaultReport || envOr("DEFAULT_REPORT", "all");
+const DEFAULT_COPY =
+  globalConfig.defaultCopy ?? (envOr("DEFAULT_COPY", "false") === "true");
+
+const DEFAULT_OPENAI_MODEL =
+  globalConfig.openaiModel || envOr("OPENAI_MODEL", "gpt-4o-mini");
+const DEFAULT_PERPLEXITY_MODEL =
+  globalConfig.perplexityModel ||
+  envOr("PERPLEXITY_MODEL", "llama-3.1-sonar-small-128k-online");
 
 const argv = yargs(hideBin(process.argv))
   .option("path", {
@@ -63,15 +100,14 @@ const argv = yargs(hideBin(process.argv))
   })
   .option("key", {
     alias: "k",
-    describe:
-      "API key (overrides env var). Format: --key=sk-xxx or OPENAI_API_KEY=sk-xxx",
+    describe: "API key (overrides config/env for chosen provider)",
     type: "string",
     default: null,
   })
   .option("model", {
     alias: "m",
     describe:
-      "Model name (overrides env var). Default: gpt-4o-mini (openai) or llama-3.1-sonar-small-128k-online (perplexity)",
+      "Model name (overrides config/env). Default: gpt-4o-mini / llama-3.1-sonar-small-128k-online",
     type: "string",
     default: null,
   })
@@ -80,73 +116,112 @@ const argv = yargs(hideBin(process.argv))
     type: "boolean",
     default: DEFAULT_COPY,
   })
-  .option("show-env", {
-    describe: "Show current environment configuration",
+  .option("init", {
+    describe: "Interactive setup of global config (like `npm init`)",
+    type: "boolean",
+    default: false,
+  })
+  .option("config", {
+    describe: "Show current global config (like `git config --list`)",
     type: "boolean",
     default: false,
   })
   .help()
   .alias("help", "h")
-  .example("ds", "Generate all reports for today")
-  .example("ds -p ~/projects/myapp", "Specify repo path")
-  .example("ds -r full", "Only full report")
-  .example("dcs -r summary", "Summary copied to clipboard (dcs = ds + copy)")
-  .example(
-    "ds --api perplexity --key pplx-xxx --model llama-3.1-sonar-large",
-    "Override API and model"
-  )
-  .example("ds --show-env", "View current configuration")
-  .epilogue(
-    `
-Command Shortcuts:
-  ds   - daily-summary (standard)
-  dcs  - daily-summary with --copy enabled (for clipboard)
-
-Configuration:
-  Create a .env file in the project root (copy from .env.example):
-  - API_PROVIDER: openai or perplexity
-  - OPENAI_API_KEY: your OpenAI key
-  - PERPLEXITY_API_KEY: your Perplexity key
-  - OPENAI_MODEL: default OpenAI model
-  - PERPLEXITY_MODEL: default Perplexity model
-  - DEFAULT_REPORT: all, full, or summary
-  - DEFAULT_COPY: true or false
-
-CLI Override Examples:
-  ds --api openai --key sk-xxx                    # Override API key
-  ds --model gpt-4-turbo                          # Override model
-  ds --api perplexity --key pplx-xxx              # Switch to Perplexity
-
-Environment Check:
-  ds --show-env                                   # See current config
-
-Documentation:
-  https://github.com/yourusername/daily-commit-summary
-`.trim()
-  )
   .parseSync();
 
-/**
- * Show environment configuration
- */
-function showEnvironmentConfig(api, model, key) {
-  console.log("\n");
-  console.log("⚙️  Current Configuration");
-  console.log("═".repeat(70));
-  console.log(`API Provider: ${api}`);
-  console.log(`Model: ${model}`);
-  console.log(`API Key: ${key ? "✅ Set (hidden for security)" : "❌ Not set"}`);
-  console.log(`Default Report: ${DEFAULT_REPORT_TYPE}`);
-  console.log(`Default Copy: ${DEFAULT_COPY}`);
-  console.log("═".repeat(70));
-  console.log("\n📝 To set a .env file, create one in the project root:");
-  console.log("   cp .env.example .env");
-  console.log("   # Edit .env with your settings\n");
+// ---------- Interactive init ----------
+async function runInitWizard() {
+  console.log("\n🧙  Daily Commit Summary - Init");
+  console.log("This will create/update your global config:");
+  console.log(`  ${GLOBAL_CONFIG_PATH}\n`);
+
+  const answers = await inquirer.prompt([
+    {
+      type: "list",
+      name: "apiProvider",
+      message: "Default API provider:",
+      choices: [
+        { name: "OpenAI", value: "openai" },
+        { name: "Perplexity", value: "perplexity" },
+      ],
+      default: DEFAULT_API_PROVIDER,
+    },
+    {
+      type: "input",
+      name: "openaiKey",
+      message: "OpenAI API key (leave blank if not using):",
+      default: globalConfig.openaiKey || "",
+    },
+    {
+      type: "input",
+      name: "perplexityKey",
+      message: "Perplexity API key (leave blank if not using):",
+      default: globalConfig.perplexityKey || "",
+    },
+    {
+      type: "input",
+      name: "openaiModel",
+      message: "Default OpenAI model:",
+      default: DEFAULT_OPENAI_MODEL,
+    },
+    {
+      type: "input",
+      name: "perplexityModel",
+      message: "Default Perplexity model:",
+      default: DEFAULT_PERPLEXITY_MODEL,
+    },
+    {
+      type: "list",
+      name: "defaultReport",
+      message: "Default report type:",
+      choices: [
+        { name: "all (full + summary)", value: "all" },
+        { name: "full only", value: "full" },
+        { name: "summary only", value: "summary" },
+      ],
+      default: DEFAULT_REPORT_TYPE,
+    },
+    {
+      type: "confirm",
+      name: "defaultCopy",
+      message: "Copy to clipboard by default?",
+      default: DEFAULT_COPY,
+    },
+  ]);
+
+  const newConfig = {
+    ...globalConfig,
+    apiProvider: answers.apiProvider,
+    openaiKey: answers.openaiKey,
+    perplexityKey: answers.perplexityKey,
+    openaiModel: answers.openaiModel,
+    perplexityModel: answers.perplexityModel,
+    defaultReport: answers.defaultReport,
+    defaultCopy: answers.defaultCopy,
+  };
+
+  saveGlobalConfig(newConfig);
+
+  console.log("\n✅ Global config saved.");
+  printGlobalConfig(newConfig);
+  process.exit(0);
 }
 
-/**
- * Get API key and model based on provider and CLI args
- */
+// ---------- Config command ----------
+if (argv.config) {
+  console.log("\n⚙️  Daily Commit Summary - Config\n");
+  printGlobalConfig(globalConfig);
+  console.log("Tip: run `ds --init` to change these values.\n");
+  process.exit(0);
+}
+
+if (argv.init) {
+  // run interactive wizard then exit
+  await runInitWizard();
+}
+
+// ---------- API config resolution & validation ----------
 function getApiConfig(provider, cliKey, cliModel) {
   const selectedProvider = provider || DEFAULT_API_PROVIDER;
 
@@ -154,18 +229,42 @@ function getApiConfig(provider, cliKey, cliModel) {
   let model;
 
   if (selectedProvider === "openai") {
-    apiKey = cliKey || process.env.OPENAI_API_KEY;
+    apiKey =
+      cliKey ||
+      globalConfig.openaiKey ||
+      process.env.OPENAI_API_KEY ||
+      null;
     model = cliModel || DEFAULT_OPENAI_MODEL;
-  } else if (selectedProvider === "perplexity") {
-    apiKey = cliKey || process.env.PERPLEXITY_API_KEY;
+  } else {
+    apiKey =
+      cliKey ||
+      globalConfig.perplexityKey ||
+      process.env.PERPLEXITY_API_KEY ||
+      null;
     model = cliModel || DEFAULT_PERPLEXITY_MODEL;
   }
 
-  if (!apiKey) {
-    console.error(`❌ No API key found for ${selectedProvider}`);
-    console.error(
-      `   Set it in .env or use: --key=your_key or OPENAI_API_KEY=sk-xxx`
-    );
+  const missing = [];
+  if (!apiKey) missing.push("API key");
+
+  if (missing.length) {
+    console.error("\n❌ Missing required configuration:");
+    if (!apiKey) {
+      console.error(
+        `   - No API key for provider \"${selectedProvider}\".`
+      );
+      console.error(
+        `     Set it via one of:\n` +
+          `       • ds --init\n` +
+          `       • ds --api ${selectedProvider} --key YOUR_KEY\n` +
+          `       • global config file: ${GLOBAL_CONFIG_PATH}\n` +
+          `       • env var: ${
+            selectedProvider === "openai"
+              ? "OPENAI_API_KEY"
+              : "PERPLEXITY_API_KEY"
+          }\n`
+      );
+    }
     process.exit(1);
   }
 
@@ -342,13 +441,6 @@ function formatReports(fullReport, summaryReport, dateStr) {
  * Main function
  */
 async function main() {
-  // Show env if requested
-  if (argv["show-env"]) {
-    const { apiKey, model, provider } = getApiConfig(argv.api, argv.key, argv.model);
-    showEnvironmentConfig(provider, model, argv.key || process.env.OPENAI_API_KEY || process.env.PERPLEXITY_API_KEY);
-    return;
-  }
-
   const repoPath = resolve(argv.path);
   const branch = getCurrentBranch(repoPath);
   const dateStr = argv.date;
