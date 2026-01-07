@@ -353,23 +353,44 @@ async function callAI(commits, prompt, model, apiKey, apiProvider) {
  * Generate full detailed report
  */
 async function generateFullReport(commits, branch, apiKey, model, api) {
-  const prompt = `You are a professional project manager. Create a detailed daily work report based on these git commits.
+  const prompt = `You are a Product Owner creating a daily update for stakeholders in Asana.
+The audience is non-technical (Project Managers).
+Your goal is to translate technical git commits into a **concise, factual** natural language report.
 
-Requirements:
-- Use first person ("I", "We")
-- Structure with clear sections (features, bug fixes, improvements, etc.)
-- Use bullet points and indentation for sub-items
-- Title should be max 12 words
-- Include specific implementation details
-- Be concise but comprehensive
-- Format as markdown with sections and bullets
+**Rules:**
+- **NO Technical Jargon**: No class names, files, etc.
+- **NO Marketing Fluff**: Do not use phrases like "improving user experience", "seamless integration", "for better management", or "allowing for deeper insights". *Just describe the action and functionality.*
+- **Be Specific**: Instead of "Added a dropdown for options", say "Added a dropdown for switching users".
+- **Format**:
+  - **Summary**: A title line (e.g. "Coach Dashboard Enhancements"), followed by a single paragraph.
+  - **Feature Areas**: Simple headers ending in a colon (e.g. "Coach Dashboard:").
+  - **Bullet points**: Crisp, direct sentences.
+  - **Next steps**: 2-3 inferred logical next steps.
 
+**Format Example**:
+Summary
+[Title of work area]
+
+[One paragraph summary of achievements]
+
+[Feature Area Name]:
+- [Direct description of change]
+- [Direct description of change]
+
+More:
+- [Minor UI/style change]
+
+Next steps
+- [Planned task 1]
+- [Planned task 2]
+
+**Context**:
 Git commits:
 ${commits}
 
 Branch: ${branch}
 
-Generate the report now. Start with a title, then sections with bullets:`;
+Generate the report following the format above.`;
 
   return await callAI(commits, prompt, model, apiKey, api);
 }
